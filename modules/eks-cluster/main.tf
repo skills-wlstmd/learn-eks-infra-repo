@@ -38,25 +38,11 @@ module "eks" {
     vpc-cni = {}
   }
 
-  node_security_group_additional_rules = {
-    ingress_nodes_karpenter_port = {
-      description                   = "Cluster API to Node group for Karpenter webhook"
-      protocol                      = "tcp"
-      from_port                     = 8443
-      to_port                       = 8443
-      type                          = "ingress"
-      source_cluster_security_group = true
-    }
-  }
+  node_security_group_additional_rules = {}
 
   # Tag Node Security Group
   node_security_group_tags = {
     "karpenter.sh/discovery" = local.cluster_name
-  }
-
-  # EKS Managed Node Group(s)
-  eks_managed_node_group_defaults = {
-    instance_types = ["t3.large"]
   }
 
   eks_managed_node_groups = {
@@ -66,7 +52,6 @@ module "eks" {
       desired_size = 2
 
       instance_types = ["t3.large"]
-      capacity_type  = "ON_DEMAND"
 
       iam_role_additional_policies = {
         AmazonSSMManagedInstanceCore = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
@@ -77,18 +62,15 @@ module "eks" {
   # Cluster access entry
   enable_cluster_creator_admin_permissions = true
 
-  access_entries = {
+  access_entries = var.create_access_entry ? {
     admin_user = {
-      kubernetes_groups = ["system:masters"]
+      kubernetes_groups = []
       principal_arn     = "arn:aws:iam::<AWSID>:user/admin"
     }
-  }
-
-  # Tags
-  tags = local.tag
+  } : {}
 }
 
-// 프라이빗 서브넷 태그
+// private subnet tag
 resource "aws_ec2_tag" "private_subnet_tag" {
   for_each    = toset(local.private_subnets)
   resource_id = each.value
@@ -110,7 +92,7 @@ resource "aws_ec2_tag" "private_subnet_karpenter_tag" {
   value       = local.cluster_name
 }
 
-// 퍼블릭 서브넷 태그
+// public subnet tag
 resource "aws_ec2_tag" "public_subnet_tag" {
   for_each    = toset(local.public_subnets)
   resource_id = each.value
